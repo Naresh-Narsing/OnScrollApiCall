@@ -7,29 +7,31 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.ListView;
-import android.widget.Toast;
+import android.view.View;
+import android.widget.AbsListView;
+import android.widget.GridView;
+import android.widget.ProgressBar;
 
-import com.craftsvilla.volley.adapter.CustomListAdapter;
-import com.craftsvilla.volley.interfaces.GetJsonData;
+import com.craftsvilla.volley.adapter.CustomGridAdapter;
+import com.craftsvilla.volley.interfaces.MainActivityInterface;
 import com.craftsvilla.volley.model.Movie;
-import com.craftsvilla.volley.presenter.GetJsonPresenter;
+import com.craftsvilla.volley.presenter.MainActivityPresenter;
 
-import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity implements GetJsonData{
+public class MainActivity extends AppCompatActivity implements MainActivityInterface,AbsListView.OnScrollListener {
 
     private static final String TAG = MainActivity.class.getSimpleName();
 
     private static final String url = "http://api.androidhive.info/json/movies.json";
-    private ProgressDialog pDialog;
-    private List<Movie> movieList = new ArrayList<Movie>();
-    private ListView listView;
-    private CustomListAdapter adapter;
-    GetJsonPresenter getJsonPresenter;
-    Movie movie1;
-
+    MainActivityPresenter mainActivityPresenter;
+    private GridView gridView;
+    private CustomGridAdapter adapter;
+    private ProgressDialog progressDialog;
+    private ProgressBar progressBar;
+    private boolean isLoadingMoreItems = false;
+    private int page_id = 1;
+    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -37,101 +39,17 @@ public class MainActivity extends AppCompatActivity implements GetJsonData{
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        listView = (ListView) findViewById(R.id.list);
+        progressBar = (ProgressBar) findViewById(R.id.progressBar);
 
+        gridView = (GridView) findViewById(R.id.grid);
 
-        getJsonPresenter = new GetJsonPresenter(this);
-        getJsonPresenter.sendUrl(this, url);
+        if (gridView != null) {
+            gridView.setOnScrollListener(this);
+        }
 
-
-
-        /*pDialog = new ProgressDialog(this);
-        // Showing progress dialog before making http request
-        pDialog.setMessage("Loading...");
-        pDialog.show();
-
-        // Creating volley request obj
-        JsonArrayRequest movieReq = new JsonArrayRequest(url,
-                new Response.Listener<JSONArray>() {
-                    @Override
-                    public void onResponse(JSONArray response) {
-                        Log.d(TAG, response.toString());
-                        hidePDialog();
-
-                        // Parsing json
-                        for (int i = 0; i < response.length(); i++) {
-                            try {
-
-                                JSONObject obj = response.getJSONObject(i);
-                                Movie movie = new Movie();
-                                movie.setTitle(obj.getString("title"));
-                                movie.setImage(obj.getString("image"));
-                                movie.setRating(((Number) obj.set("rating"))
-                                        .doubleValue());
-                                movie.setReleaseYear(obj.getInt("releaseYear"));
-
-                                // Genre is json array
-                                JSONArray genreArry = obj.getJSONArray("genre");
-                                ArrayList<String> genre = new ArrayList<String>();
-                                for (int j = 0; j < genreArry.length(); j++) {
-                                    genre.add((String) genreArry.set(j));
-                                }
-                                movie.setGenre(genre);
-
-                                // adding movie to movies array
-                                movieList.add(movie);
-
-                            } catch (JSONException e) {
-                                e.printStackTrace();
-                            }
-
-                        }
-
-                        // notifying list adapter about data changes
-                        // so that it renders the list view with updated data
-                        adapter.notifyDataSetChanged();
-                    }
-                }, new Response.ErrorListener() {
-            @Override
-            public void onErrorResponse(VolleyError error) {
-                VolleyLog.d(TAG, "Error: " + error.getMessage());
-                hidePDialog();
-
-            }
-        });*/
-
-
-      /*  StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
-                new Response.Listener<String>() {
-                    @Override
-                    public void onResponse(String response) {
-                        pDialog.cancel();
-                    Model movie=new Gson().fromJson(response,Model.class);
-                    Log.e("HELLOS:",movie.getEmail()+"");
-
-                    }
-                }, new Response.ErrorListener() {
-            @Override
-            public void onErrorResponse(VolleyError error) {
-                pDialog.cancel();
-                Log.e("HELLOS:",error+"");
-            }
-        });
-*/
-        // Adding request to request queue
-       // AppController.getInstance().addToRequestQueue(movieReq);
-    }//
-
-//
-//        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-//        fab.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View view) {
-//                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-//                        .setAction("Action", null).show();
-//            }
-//        });
-//    }
+        mainActivityPresenter = new MainActivityPresenter(this);
+        mainActivityPresenter.sendUrl(url,page_id,true,this);
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -151,47 +69,119 @@ public class MainActivity extends AppCompatActivity implements GetJsonData{
         if (id == R.id.action_settings) {
             return true;
         }
-
         return super.onOptionsItemSelected(item);
     }
 
     @Override
-    public void onDestroy() {
-        super.onDestroy();
-        hidePDialog();
+    public void onScrollStateChanged(AbsListView view, int scrollState) {
     }
-
-    private void hidePDialog() {
-        if (pDialog != null) {
-            pDialog.dismiss();
-            pDialog = null;
-        }
-    }
- //   AppController.getInstance().addToRequestQueue(movieReq);
 
     @Override
-    public void get(Movie movie) {
-        Log.e("CHECKDATA", movie.getTitle() + " ");
-        movieList.add(movie);
-        Log.i(TAG, "set: "+movieList+"\n"+movie);
-        if(movie!=null && movieList.size()>0)
-        {
-            adapter = new CustomListAdapter(this, movieList);
-            listView.setAdapter(adapter);
+    public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
+        Log.i("SCROLLING DOWN","TRUE");
+        Log.d(TAG, "onScroll() called with: " + " firstVisibleItem = [" + firstVisibleItem + "], visibleItemCount = [" + visibleItemCount + "], totalItemCount = [" + totalItemCount + "]");
+        if (totalItemCount >0){
+            if (!isLoadingMoreItems) {
+                int lastInScreen = firstVisibleItem + visibleItemCount;
+                if (lastInScreen >= totalItemCount) {
+                    isLoadingMoreItems = true;
+                    mainActivityPresenter.sendUrl(url, page_id, false, this);
+                    page_id++;
+                }
+            }
         }
     }
 
     @Override
-    public String networkError(String ntwkError) {
-        String i = ntwkError;
-        Toast.makeText(MainActivity.this, "NO INTERNET", Toast.LENGTH_SHORT).show();
-        return i;
+    public void updatingAdapterViewsForFirstTime(final List<Movie> movies) {
+        try {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (movies.size() > 0) {
+                        adapter = new CustomGridAdapter(MainActivity.this, movies);
+                        gridView.setAdapter(adapter);
+                    }
+                }
+            });
+        }catch (Exception e){
+            e.printStackTrace();
+        }
     }
 
     @Override
-    public boolean urlError(String URL) {
+    public void showProgressDialog() {
+        try{
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    progressDialog = new ProgressDialog(MainActivity.this);
+                    progressDialog.setMessage("Loading");
+                    progressDialog.show();
+                }
+            });
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+    }
 
-        Toast.makeText(MainActivity.this, "URL ERROR"  , Toast.LENGTH_SHORT).show();
-        return true;
+    @Override
+    public void hideProgressDialog() {
+        try {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (progressDialog != null) {
+                        progressDialog.dismiss();
+                        progressDialog = null;
+                    }
+                }
+            });
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void loadingMoreItems() {
+        try {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    progressBar.setVisibility(View.VISIBLE);
+                }
+            });
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void hideLoadingMore() {
+        try {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    progressBar.setVisibility(View.GONE);
+                }
+            });
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void loadingMoreItemsInAdapter() {
+        try{
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    adapter.notifyDataSetChanged();
+                    isLoadingMoreItems = false;
+                }
+            });
+        }catch (Exception e){
+            e.printStackTrace();
+        }
     }
 }
